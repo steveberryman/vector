@@ -146,7 +146,7 @@ enum TransformError {
 fn render_template(s: &str, event: &Event) -> Result<String, TransformError> {
     let template = Template::try_from(s).map_err(TransformError::TemplateParseError)?;
     template
-        .render_string(&event)
+        .render_string(event)
         .map_err(TransformError::TemplateRenderingError)
 }
 
