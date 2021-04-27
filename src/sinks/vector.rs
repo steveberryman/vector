@@ -1,7 +1,7 @@
 use crate::{
     config::{DataType, GenerateConfig, SinkConfig, SinkContext, SinkDescription},
     event::proto,
-    sinks::util::{tcp::TcpSinkConfig, MetadataInput},
+    sinks::util::{tcp::TcpSinkConfig, EncodedEvent},
     tcp::TcpKeepaliveConfig,
     tls::TlsConfig,
     Event,
@@ -92,7 +92,7 @@ enum HealthcheckError {
     ConnectError { source: std::io::Error },
 }
 
-fn encode_event(event: Event) -> MetadataInput<Bytes> {
+fn encode_event(event: Event) -> EncodedEvent<Bytes> {
     let event = proto::EventWrapper::from(event);
     let event_len = event.encoded_len();
     let full_len = event_len + 4;
@@ -101,7 +101,7 @@ fn encode_event(event: Event) -> MetadataInput<Bytes> {
     out.put_u32(event_len as u32);
     event.encode(&mut out).unwrap();
 
-    MetadataInput::new(out.into())
+    EncodedEvent::new(out.into())
 }
 
 #[cfg(test)]
