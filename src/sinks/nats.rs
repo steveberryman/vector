@@ -33,6 +33,8 @@ pub struct NatsSinkConfig {
     name: String,
     subject: String,
     url: String,
+    user: String,
+    password: String,
 }
 
 fn default_name() -> String {
@@ -57,7 +59,9 @@ impl GenerateConfig for NatsSinkConfig {
             encoding.codec = "json"
             name = "vector"
             subject = "from.vector"
-            url = "nats://127.0.0.1:4222""#,
+            url = "nats://127.0.0.1:4222"
+            user = "user"
+            password = "password""#,
         )
         .unwrap()
     }
@@ -88,9 +92,15 @@ impl NatsSinkConfig {
     fn to_nats_options(&self) -> async_nats::Options {
         // Set reconnect_buffer_size on the nats client to 0 bytes so that the
         // client doesn't buffer internally (to avoid message loss).
-        async_nats::Options::new()
-            .with_name(&self.name)
-            .reconnect_buffer_size(0)
+        if &self.user != "" {
+            async_nats::Options::with_user_pass(&self.user, &self.password)
+                .with_name(&self.name)
+                .reconnect_buffer_size(0)
+        } else {
+            async_nats::Options::new()
+                .with_name(&self.name)
+                .reconnect_buffer_size(0)
+        }
     }
 
     async fn connect(&self) -> crate::Result<async_nats::Connection> {
@@ -112,6 +122,8 @@ async fn healthcheck(config: NatsSinkConfig) -> crate::Result<()> {
 #[derive(Clone)]
 struct NatsOptions {
     name: String,
+    user: String,
+    password: String,
 }
 
 pub struct NatsSink {
@@ -136,9 +148,15 @@ impl NatsSink {
 
 impl From<NatsOptions> for async_nats::Options {
     fn from(options: NatsOptions) -> Self {
-        async_nats::Options::new()
-            .with_name(&options.name)
-            .reconnect_buffer_size(0)
+        if &options.user != "" {
+            async_nats::Options::with_user_pass(&options.user, &options.password)
+                .with_name(&options.name)
+                .reconnect_buffer_size(0)
+        } else {
+            async_nats::Options::new()
+                .with_name(&options.name)
+                .reconnect_buffer_size(0)
+        }
     }
 }
 
@@ -146,6 +164,8 @@ impl From<&NatsSinkConfig> for NatsOptions {
     fn from(options: &NatsSinkConfig) -> Self {
         Self {
             name: options.name.clone(),
+            user: options.user.clone(),
+            password: options.password.clone(),
         }
     }
 }
@@ -156,7 +176,7 @@ impl StreamSink for NatsSink {
         let nats_options: async_nats::Options = self.options.clone().into();
 
         let nc = nats_options.connect(&self.url).await.map_err(|_| ())?;
-
+    
         while let Some(event) = input.next().await {
             let subject = match self.subject.render_string(&event) {
                 Ok(subject) => subject,
