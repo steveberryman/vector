@@ -33,8 +33,8 @@ pub struct NatsSinkConfig {
     name: String,
     subject: String,
     url: String,
-    user: String,
-    password: String,
+    user: Option<String>,
+    password: Option<String>,
 }
 
 fn default_name() -> String {
@@ -60,8 +60,8 @@ impl GenerateConfig for NatsSinkConfig {
             name = "vector"
             subject = "from.vector"
             url = "nats://127.0.0.1:4222"
-            user = "user"
-            password = "password""#,
+            user = ""
+            password = """#,
         )
         .unwrap()
     }
@@ -92,14 +92,17 @@ impl NatsSinkConfig {
     fn to_nats_options(&self) -> async_nats::Options {
         // Set reconnect_buffer_size on the nats client to 0 bytes so that the
         // client doesn't buffer internally (to avoid message loss).
-        if &self.user != "" {
-            async_nats::Options::with_user_pass(&self.user, &self.password)
-                .with_name(&self.name)
-                .reconnect_buffer_size(0)
-        } else {
-            async_nats::Options::new()
-                .with_name(&self.name)
-                .reconnect_buffer_size(0)
+        match (&self.user, &self.password) {
+            (Some(user), Some(password)) => {
+                async_nats::Options::with_user_pass(&user, &password)
+                    .with_name(&self.name)
+                    .reconnect_buffer_size(0)
+            },
+            _ => {
+                async_nats::Options::new()
+                    .with_name(&self.name)
+                    .reconnect_buffer_size(0)
+            }
         }
     }
 
@@ -122,8 +125,8 @@ async fn healthcheck(config: NatsSinkConfig) -> crate::Result<()> {
 #[derive(Clone)]
 struct NatsOptions {
     name: String,
-    user: String,
-    password: String,
+    user: Option<String>,
+    password: Option<String>,
 }
 
 pub struct NatsSink {
@@ -148,14 +151,17 @@ impl NatsSink {
 
 impl From<NatsOptions> for async_nats::Options {
     fn from(options: NatsOptions) -> Self {
-        if &options.user != "" {
-            async_nats::Options::with_user_pass(&options.user, &options.password)
-                .with_name(&options.name)
-                .reconnect_buffer_size(0)
-        } else {
-            async_nats::Options::new()
-                .with_name(&options.name)
-                .reconnect_buffer_size(0)
+        match (&options.user, &options.password) {
+            (Some(user), Some(password)) => {
+                async_nats::Options::with_user_pass(&user, &password)
+                    .with_name(&options.name)
+                    .reconnect_buffer_size(0)
+            },
+            _ => {
+                async_nats::Options::new()
+                    .with_name(&options.name)
+                    .reconnect_buffer_size(0)
+            }
         }
     }
 }
@@ -282,6 +288,8 @@ mod integration_tests {
             name: "".to_owned(),
             subject: subject.clone(),
             url: "nats://127.0.0.1:4222".to_owned(),
+            user: None,
+            password: None,
         };
 
         // Establish the consumer subscription.
